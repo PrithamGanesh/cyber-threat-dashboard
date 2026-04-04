@@ -57,3 +57,7 @@ python scripts/log_generator.py --lines 1000 --out sample-data/eve.json
 - **GeoIP enrichment** — ip-api.com (free) or AbuseIPDB (optional API key)
 - **Dark tactical UI** — sortable table, live feed ticker, world attack map
 - **Simulation scripts** — generate realistic attack traffic without a live IDS
+
+## License
+
+This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
