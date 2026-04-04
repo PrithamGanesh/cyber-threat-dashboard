@@ -76,3 +76,19 @@ docker-compose.override.yml
 # Security Scanning
 .bandit
 security-report.json
+
+# System & IDE Installation Files (outside project directory)
+../$RECYCLE.BIN/
+../Eclipse\ IDE/
+../Installer/
+../Microsoft\ VS\ Code/
+../MySQL/
+../PyCharm*/
+../Python*/
+../SSMS/
+../Sublime\ Text/
+../Suricata/
+../VLC/
+../WinRAR/
+../Zenmap/
+../rtrB732.tmp
