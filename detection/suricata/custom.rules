@@ -1,0 +1,5 @@
+﻿# LiveSOC Custom Rules — for demonstration
+alert tcp $EXTERNAL_NET any -> $HOME_NET 4444 (msg:"ET MALWARE Possible Meterpreter Reverse Shell"; sid:9000001; rev:1;)
+alert tcp $EXTERNAL_NET any -> $HOME_NET 1337 (msg:"ET SCAN Elite Port Activity"; sid:9000002; rev:1;)
+alert http $EXTERNAL_NET any -> $HOME_NET any (msg:"ET WEB_SERVER JNDI Injection Attempt (Log4Shell)"; content:"jndi:"; nocase; sid:9000003; rev:1;)
+alert tcp $EXTERNAL_NET any -> $HOME_NET 3389 (msg:"ET SCAN RDP Brute Force Attempt"; threshold:type both,track by_src,count 10,seconds 60; sid:9000004; rev:1;)

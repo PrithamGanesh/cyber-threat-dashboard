@@ -1,0 +1,5 @@
+﻿%YAML 1.1
+---
+default-rule-path: /etc/suricata/rules
+rule-files:
+  - custom.rules
