@@ -1,6 +1,7 @@
 ﻿from pydantic_settings import BaseSettings
 from typing import List
 import os
+import secrets
 
 
 class Settings(BaseSettings):
@@ -9,6 +10,10 @@ class Settings(BaseSettings):
     # App
     APP_NAME: str = "LiveSOC"
     DEBUG: bool = os.getenv("DEBUG", "false").lower() == "true"
+
+    # JWT Authentication
+    JWT_SECRET: str = os.getenv("JWT_SECRET", secrets.token_urlsafe(32))
+    JWT_ALGORITHM: str = "HS256"
 
     # Database (REQUIRED - no defaults)
     DATABASE_URL: str = os.getenv("DATABASE_URL", "postgresql+asyncpg://soc:changeme@postgres:5432/livesoc")
@@ -23,6 +28,9 @@ class Settings(BaseSettings):
         origin.strip() 
         for origin in os.getenv("ALLOWED_ORIGINS", "http://localhost:3000,http://localhost:5173").split(",")
     ]
+    
+    # Admin API Key for protected operations (demo mode)
+    ADMIN_API_KEY: str = os.getenv("ADMIN_API_KEY", "admin-key-change-in-production")
 
     # Threat Intel (optional - API keys won't be logged)
     ABUSEIPDB_API_KEY: str = os.getenv("ABUSEIPDB_API_KEY", "")

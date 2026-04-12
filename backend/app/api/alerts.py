@@ -1,4 +1,4 @@
-﻿from fastapi import APIRouter, Depends, HTTPException, Query, BackgroundTasks
+﻿from fastapi import APIRouter, Depends, HTTPException, Query, BackgroundTasks, Header
 from fastapi.responses import StreamingResponse
 from sqlalchemy.ext.asyncio import AsyncSession
 from typing import List, Optional, AsyncGenerator, Dict, Any
@@ -6,12 +6,14 @@ import asyncio
 import json
 import redis.asyncio as aioredis
 import logging
+import ipaddress
 
 from app.db.database import get_db
 from app.db import crud
-from app.models.alert import AlertResponse, AlertCreate, AlertStats
+from app.models.alert import AlertResponse, AlertCreate, AlertStats, SeverityEnum, AlertSourceEnum
 from app.services.parser import parse_log_line
 from app.core.config import settings
+from app.core.security import get_current_user
 
 router = APIRouter()
 logger = logging.getLogger(__name__)
@@ -21,30 +23,41 @@ logger = logging.getLogger(__name__)
 async def list_alerts(
     skip: int = Query(0, ge=0),
     limit: int = Query(100, ge=1, le=500),
-    severity: Optional[str] = Query(None, pattern="^(critical|high|medium|low)$"),
+    severity: Optional[SeverityEnum] = Query(None),
     source_ip: Optional[str] = None,
     alert_type: Optional[str] = None,
     db: AsyncSession = Depends(get_db),
+    current_user: dict = Depends(get_current_user),
 ) -> List[AlertResponse]:
     """Retrieve paginated alerts with optional filters.
+    
+    Requires: Bearer token authentication
     
     Args:
         skip: Number of alerts to skip (pagination offset)
         limit: Number of alerts to return (1-500)
         severity: Filter by severity (critical|high|medium|low)
-        source_ip: Filter by source IP address
+        source_ip: Filter by source IP address (must be valid IP)
         alert_type: Filter by alert type/signature
         db: Database session
+        current_user: Authenticated user (from JWT token)
     
     Returns:
         List of alerts matching the filters
     """
+    # Validate source_ip if provided
+    if source_ip:
+        try:
+            ipaddress.ip_address(source_ip)
+        except ValueError:
+            raise HTTPException(status_code=400, detail=f"Invalid IP address: {source_ip}")
+    
     try:
         alerts = await crud.get_alerts(
             db, 
             skip=skip, 
             limit=limit, 
-            severity=severity,
+            severity=severity.value if severity else None,
             source_ip=source_ip, 
             alert_type=alert_type
         )
@@ -55,8 +68,13 @@ async def list_alerts(
 
 
 @router.get("/stats", response_model=AlertStats)
-async def alert_stats(db: AsyncSession = Depends(get_db)) -> AlertStats:
+async def alert_stats(
+    db: AsyncSession = Depends(get_db),
+    current_user: dict = Depends(get_current_user),
+) -> AlertStats:
     """Aggregate alert statistics (total, by severity, unique sources).
+    
+    Requires: Bearer token authentication
     
     Returns:
         AlertStats with counts and top categories
@@ -70,8 +88,12 @@ async def alert_stats(db: AsyncSession = Depends(get_db)) -> AlertStats:
 
 
 @router.get("/stream")
-async def stream_alerts() -> StreamingResponse:
+async def stream_alerts(
+    current_user: dict = Depends(get_current_user),
+) -> StreamingResponse:
     """Server-Sent Events endpoint for real-time alert streaming.
+    
+    Requires: Bearer token authentication
     
     Subscribes to Redis pub/sub channel and streams new alerts to the browser.
     
@@ -116,10 +138,13 @@ async def stream_alerts() -> StreamingResponse:
 async def ingest_log(
     payload: Dict[str, Any],
     background_tasks: BackgroundTasks,
-    source: str = Query("suricata", description="Log source: suricata or zeek"),
+    source: AlertSourceEnum = Query(AlertSourceEnum.SURICATA, description="Log source: suricata or zeek"),
     db: AsyncSession = Depends(get_db),
+    current_user: dict = Depends(get_current_user),
 ) -> AlertResponse:
     """Ingest a raw log line from IDS system.
+    
+    Requires: Bearer token authentication
     
     Parses, scores, geo-enriches, persists, and publishes to Redis.
     
@@ -128,6 +153,7 @@ async def ingest_log(
         background_tasks: Background task runner for async operations
         source: Log source type (suricata or zeek)
         db: Database session
+        current_user: Authenticated user (from JWT token)
     
     Returns:
         Created alert response
@@ -137,16 +163,9 @@ async def ingest_log(
         HTTPException 500: If database or parsing error occurs
     """
     try:
-        # Validate source parameter
-        if source not in ["suricata", "zeek"]:
-            raise HTTPException(
-                status_code=400, 
-                detail="Source must be 'suricata' or 'zeek'"
-            )
-        
         # Parse the log entry
         raw_line = json.dumps(payload)
-        alert = await parse_log_line(raw_line, source=source)
+        alert = await parse_log_line(raw_line, source=source.value)
         
         if not alert:
             logger.warning(f"Log entry did not produce an alert: {source}")
@@ -177,13 +196,17 @@ async def ingest_log(
 @router.get("/{alert_id}", response_model=AlertResponse)
 async def get_alert(
     alert_id: int, 
-    db: AsyncSession = Depends(get_db)
+    db: AsyncSession = Depends(get_db),
+    current_user: dict = Depends(get_current_user),
 ) -> AlertResponse:
     """Retrieve a single alert by ID.
+    
+    Requires: Bearer token authentication
     
     Args:
         alert_id: Alert ID
         db: Database session
+        current_user: Authenticated user (from JWT token)
     
     Returns:
         Alert response
@@ -204,17 +227,34 @@ async def get_alert(
 
 
 @router.delete("/reset", status_code=204)
-async def reset_alerts(db: AsyncSession = Depends(get_db)) -> None:
+async def reset_alerts(
+    admin_key: str = Header(None),
+    db: AsyncSession = Depends(get_db)
+) -> None:
     """Clear all alerts from database (useful for demo resets).
     
     WARNING: This permanently deletes all alerts!
     
+    Requires: admin-key header with correct admin API key
+    
     Args:
+        admin_key: Admin API key from header
         db: Database session
+    
+    Raises:
+        HTTPException 401: If admin key is missing or invalid
     """
+    # Validate admin API key
+    if not admin_key or admin_key != settings.ADMIN_API_KEY:
+        logger.warning(f"Unauthorized reset attempt with key: {admin_key}")
+        raise HTTPException(
+            status_code=401,
+            detail="Unauthorized: Invalid or missing admin-key header"
+        )
+    
     try:
         await crud.delete_all_alerts(db)
-        logger.warning("All alerts have been deleted")
+        logger.warning("All alerts have been deleted by admin")
     except Exception as e:
         logger.error(f"Error resetting alerts: {e}")
         raise HTTPException(status_code=500, detail="Failed to reset alerts")
