@@ -1,4 +1,4 @@
-﻿"""
+"""
 Risk scoring engine.
 Base score from severity + category boosters + heuristic IP bonuses.
 Final score is clamped to [0, 100].
@@ -47,9 +47,11 @@ def calculate_score(severity: str, category: str, source_ip: str = "") -> float:
     ip_boost = 0
     if source_ip:
         # Tor exit node heuristic — many exits start with specific octets (simplified)
-        first_octet = int(source_ip.split(".")[0]) if "." in source_ip else 0
-        if first_octet in range(185, 200):
-            ip_boost = 5
+        # Ensure private RFC-1918 (192.168.x.x) does not trigger false Tor exit bonus
+        if not source_ip.startswith(("192.168.", "10.", "172.16.", "127.")):
+            first_octet = int(source_ip.split(".")[0]) if "." in source_ip else 0
+            if first_octet in range(185, 200):
+                ip_boost = 5
 
     score = base + boost + ip_boost
     return float(min(max(score, 0), 100))
