@@ -19,10 +19,17 @@ body {
   font-family: var(--font-sans);
   font-size: 14px;
   min-height: 100vh;
+  text-rendering: optimizeLegibility;
+}
+
+button { font: inherit; }
+button:focus-visible, .alert-row:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
 }
 
 /* ── Dashboard Layout ────────────────────────────────── */
-.dashboard { display: flex; flex-direction: column; height: 100vh; overflow: hidden; }
+.dashboard { display: flex; flex-direction: column; height: 100vh; height: 100dvh; overflow: hidden; }
 
 .dash-header {
   display: flex; align-items: center; justify-content: space-between;
@@ -159,8 +166,12 @@ body {
   font-size: 0.65rem; letter-spacing: 0.1em; color: var(--muted);
   user-select: none;
 }
-.sortable { cursor: pointer; }
-.sortable:hover { color: var(--text); }
+.sort-button {
+  display: inline-flex; align-items: center; gap: 0.2rem;
+  color: inherit; background: transparent; border: 0; cursor: pointer;
+  font: inherit; letter-spacing: inherit;
+}
+.sort-button:hover { color: var(--text); }
 .sort-arrow { color: var(--accent); }
 
 .alert-row {
@@ -230,9 +241,42 @@ body {
   color: var(--muted); font-size: 0.85rem; letter-spacing: 0.1em;
 }
 
+.status-message {
+  position: fixed; right: 1rem; bottom: 1rem; z-index: 1000;
+  max-width: min(360px, calc(100vw - 2rem));
+  padding: 0.7rem 0.9rem; color: #fecaca; background: #450a0a;
+  border: 1px solid #ef444466; border-radius: 0.45rem;
+  box-shadow: 0 12px 30px rgba(0, 0, 0, 0.35);
+}
+
 /* Leaflet dark popup */
 .dark-popup .leaflet-popup-content-wrapper {
   background: #111 !important; border: 1px solid #333 !important;
   box-shadow: 0 4px 20px rgba(0,0,0,0.8) !important;
 }
 .dark-popup .leaflet-popup-tip { background: #111 !important; }
+
+@media (max-width: 900px) {
+  .stats-row { display: grid; grid-template-columns: repeat(3, 1fr); gap: 1px; }
+  .stat-card { min-width: 0; padding: 0.7rem 0.8rem; }
+  .map-feed-row { height: 360px; }
+  .live-feed { width: 270px; }
+  .alert-table { min-width: 760px; }
+}
+
+@media (max-width: 640px) {
+  .dash-header { padding: 0.7rem 1rem; }
+  .logo-sub, .health-badge { display: none; }
+  .stats-row { grid-template-columns: repeat(2, 1fr); overflow-y: auto; }
+  .stat-card:last-child { grid-column: span 2; }
+  .map-feed-row { height: 420px; flex-direction: column; }
+  .map-container { min-height: 230px; }
+  .live-feed { width: 100%; min-height: 190px; border-left: 0; border-top: 1px solid var(--border); }
+  .filter-bar { padding: 0.55rem 0.8rem; overflow-x: auto; }
+  .filter-label, .filter-count { flex-shrink: 0; }
+  .detail-drawer { width: min(100%, 420px); padding: 1.25rem; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { animation-duration: 0.01ms !important; scroll-behavior: auto !important; transition-duration: 0.01ms !important; }
+}

@@ -21,12 +21,12 @@ export function LiveFeed({ alerts }) {
     new Date(ts).toLocaleTimeString("en-GB", { hour12: false });
 
   return (
-    <div className="live-feed" ref={feedRef}>
+    <div className="live-feed">
       <div className="feed-header">
         <span className="pulse-dot" />
         LIVE FEED
       </div>
-      <div className="feed-entries">
+      <div className="feed-entries" ref={feedRef}>
         {[...alerts].reverse().map((alert, i) => {
           const color = SEVERITY_COLORS[alert.severity] || "#888";
           return (

@@ -1,4 +1,4 @@
-﻿import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useMemo } from "react";
 import { AlertTable } from "../components/AlertTable";
 import { LiveFeed } from "../components/LiveFeed";
 import { MapView } from "../components/MapView";
@@ -29,9 +29,11 @@ export function Dashboard() {
   const [selected, setSelected] = useState(null);
   const [severityFilter, setSeverityFilter] = useState("");
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
 
   const fetchData = useCallback(async () => {
     try {
+      setError("");
       const [alertData, statsData, healthData] = await Promise.all([
         api.getAlerts({ limit: 200, severity: severityFilter || undefined }),
         api.getStats(),
@@ -42,10 +44,16 @@ export function Dashboard() {
       setHealth(healthData);
     } catch (e) {
       console.error("Fetch error:", e);
+      setError("Unable to refresh the dashboard. Retrying automatically.");
     } finally {
       setLoading(false);
     }
   }, [severityFilter]);
+
+  const mapAlerts = useMemo(
+    () => alerts.filter(({ latitude, longitude }) => Number.isFinite(latitude) && Number.isFinite(longitude)),
+    [alerts]
+  );
 
   // Initial load + poll every 30s
   useEffect(() => {
@@ -58,7 +66,10 @@ export function Dashboard() {
   useEffect(() => {
     const unsub = api.subscribeToAlerts((alert) => {
       setLiveAlerts((prev) => [...prev.slice(-49), alert]);
-      setAlerts((prev) => [alert, ...prev.slice(0, 199)]);
+      setAlerts((prev) => {
+        if (severityFilter && alert.severity !== severityFilter) return prev;
+        return [alert, ...prev.slice(0, 199)];
+      });
       setStats((prev) =>
         prev
           ? {
@@ -70,7 +81,7 @@ export function Dashboard() {
       );
     });
     return unsub;
-  }, []);
+  }, [severityFilter]);
 
   return (
     <div className="dashboard">
@@ -88,7 +99,7 @@ export function Dashboard() {
               {health.status.toUpperCase()}
             </div>
           )}
-          <button className="btn-reset" onClick={() => setAlerts([])}>
+          <button className="btn-reset" type="button" onClick={() => setAlerts([])}>
             Clear View
           </button>
         </div>
@@ -106,7 +117,7 @@ export function Dashboard() {
 
       {/* Map + Live Feed row */}
       <div className="map-feed-row">
-        <MapView alerts={alerts.filter((a) => a.latitude)} />
+        <MapView alerts={mapAlerts} />
         <LiveFeed alerts={liveAlerts} />
       </div>
 
@@ -123,6 +134,7 @@ export function Dashboard() {
                 : { "--fc": "#60a5fa" }
             }
             onClick={() => setSeverityFilter(sev)}
+            type="button"
           >
             {sev || "ALL"}
           </button>
@@ -136,12 +148,13 @@ export function Dashboard() {
       ) : (
         <AlertTable alerts={alerts} onRowClick={setSelected} />
       )}
+      {error && <div className="status-message" role="status">{error}</div>}
 
       {/* Detail drawer */}
       {selected && (
         <div className="detail-overlay" onClick={() => setSelected(null)}>
           <div className="detail-drawer" onClick={(e) => e.stopPropagation()}>
-            <button className="drawer-close" onClick={() => setSelected(null)}>✕</button>
+            <button className="drawer-close" type="button" aria-label="Close alert details" onClick={() => setSelected(null)}>✕</button>
             <h2 className="drawer-title">{selected.alert_type}</h2>
             <div
               className="drawer-sev"

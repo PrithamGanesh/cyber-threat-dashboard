@@ -1,7 +1,7 @@
 ﻿from sqlalchemy import Column, Integer, String, Float, DateTime, JSON, Text
 from sqlalchemy.sql import func
 from app.db.database import Base
-from pydantic import BaseModel, field_validator, constr
+from pydantic import BaseModel, ConfigDict, field_validator, constr
 from typing import Optional, Dict, Any
 from datetime import datetime
 from enum import Enum
@@ -119,9 +119,7 @@ class AlertCreate(AlertBase):
 class AlertResponse(AlertBase):
     id: int
     timestamp: datetime
-
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
 
 class AlertStats(BaseModel):

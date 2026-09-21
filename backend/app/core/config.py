@@ -1,4 +1,4 @@
-﻿from pydantic_settings import BaseSettings
+from pydantic_settings import BaseSettings, SettingsConfigDict
 from typing import List
 import os
 import secrets
@@ -6,6 +6,8 @@ import secrets
 
 class Settings(BaseSettings):
     """Application settings loaded from environment variables and .env file."""
+
+    model_config = SettingsConfigDict(env_file=".env", extra="ignore")
     
     # App
     APP_NAME: str = "LiveSOC"
@@ -40,10 +42,5 @@ class Settings(BaseSettings):
     CRITICAL_SCORE: int = int(os.getenv("CRITICAL_SCORE", "80"))
     HIGH_SCORE: int = int(os.getenv("HIGH_SCORE", "60"))
     MEDIUM_SCORE: int = int(os.getenv("MEDIUM_SCORE", "40"))
-
-    class Config:
-        env_file = ".env"
-        extra = "ignore"
-
 
 settings = Settings()

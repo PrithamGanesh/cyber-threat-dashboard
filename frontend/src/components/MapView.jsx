@@ -10,10 +10,18 @@ const SEVERITY_COLORS = {
   low: "#30d158",
 };
 
+const escapeHtml = (value) => String(value ?? "").replace(/[&<>"']/g, (character) => ({
+  "&": "&amp;",
+  "<": "&lt;",
+  ">": "&gt;",
+  '"': "&quot;",
+  "'": "&#039;",
+}[character]));
+
 export function MapView({ alerts }) {
   const mapRef = useRef(null);
   const leafletMap = useRef(null);
-  const markersRef = useRef([]);
+  const markerLayer = useRef(null);
 
   useEffect(() => {
     if (!window.L || leafletMap.current) return;
@@ -31,17 +39,22 @@ export function MapView({ alerts }) {
     ).addTo(leafletMap.current);
 
     window.L.control.zoom({ position: "bottomright" }).addTo(leafletMap.current);
+    markerLayer.current = window.L.layerGroup().addTo(leafletMap.current);
+
+    return () => {
+      leafletMap.current?.remove();
+      leafletMap.current = null;
+      markerLayer.current = null;
+    };
   }, []);
 
   useEffect(() => {
-    if (!leafletMap.current || !window.L) return;
+    if (!leafletMap.current || !window.L || !markerLayer.current) return;
 
-    // Clear old markers
-    markersRef.current.forEach((m) => m.remove());
-    markersRef.current = [];
+    markerLayer.current.clearLayers();
 
     alerts.forEach((alert) => {
-      if (!alert.latitude || !alert.longitude) return;
+      if (!Number.isFinite(alert.latitude) || !Number.isFinite(alert.longitude)) return;
       const color = SEVERITY_COLORS[alert.severity] || "#888";
 
       const icon = window.L.divIcon({
@@ -60,13 +73,13 @@ export function MapView({ alerts }) {
         .addTo(leafletMap.current)
         .bindPopup(`
           <div style="font-family:monospace;font-size:12px;color:#eee;background:#111;padding:6px;border-radius:4px">
-            <b style="color:${color}">${alert.severity?.toUpperCase()}</b> — ${alert.alert_type}<br/>
-            <span style="color:#aaa">${alert.source_ip}</span> → ${alert.dest_ip}<br/>
-            ${alert.country || ""} ${alert.city ? `(${alert.city})` : ""}
+            <b style="color:${color}">${escapeHtml(alert.severity).toUpperCase()}</b> — ${escapeHtml(alert.alert_type)}<br/>
+            <span style="color:#aaa">${escapeHtml(alert.source_ip)}</span> → ${escapeHtml(alert.dest_ip)}<br/>
+            ${escapeHtml(alert.country)} ${alert.city ? `(${escapeHtml(alert.city)})` : ""}
           </div>
         `, { className: "dark-popup" });
 
-      markersRef.current.push(marker);
+      markerLayer.current.addLayer(marker);
     });
   }, [alerts]);
 
